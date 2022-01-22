@@ -20,14 +20,30 @@ class FedOptTrainer(object):
     def update_model(self, weights):
         self.trainer.set_model_params(weights)
 
-    def update_dataset(self, client_index):
+    def update_dataset(self, client_index, poi_args=None):
         self.client_index = client_index
         self.train_local = self.train_data_local_dict[client_index]
         self.local_sample_number = self.train_data_local_num_dict[client_index]
+        if poi_args and poi_args.use:
+            self.poi_train_local = poi_args.train_data_local_dict.get(client_index, None)
+            self.poi_test_local = poi_args.test_data_local_dict.get(client_index, None)
 
-    def train(self, round_idx = None):
+
+    def train(self, round_idx=None):
         self.args.round_idx = round_idx
         self.trainer.train(self.train_local, self.device, self.args)
+
+        weights = self.trainer.get_model_params()
+
+        # transform Tensor to list
+        if self.args.is_mobile == 1:
+            weights = transform_tensor_to_list(weights)
+        return weights, self.local_sample_number
+
+    def poison_model(self, poi_args, round_idx=None):
+        print("In trainer")
+        self.args.round_idx = round_idx
+        self.trainer.poison_model(self.poi_train_local, self.device, poi_args)
 
         weights = self.trainer.get_model_params()
 

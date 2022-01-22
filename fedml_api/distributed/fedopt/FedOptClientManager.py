@@ -17,11 +17,15 @@ from .utils import transform_list_to_tensor, post_complete_message_to_sweep_proc
 
 
 class FedOptClientManager(ClientManager):
-    def __init__(self, args, trainer, comm=None, rank=0, size=0, backend="MPI"):
+    def __init__(self, args, trainer, comm=None, rank=0, size=0, backend="MPI", poi_args=None):
         super().__init__(args, comm, rank, size, backend)
         self.trainer = trainer
         self.num_rounds = args.comm_round
         self.round_idx = 0
+        self.client_idx = None
+        self.poi_args = poi_args
+        if poi_args and poi_args.use:
+            self.poisoned_client_idxs = poi_args.poisoned_client_idxs
 
     def run(self):
         super().run()
@@ -35,12 +39,13 @@ class FedOptClientManager(ClientManager):
     def handle_message_init(self, msg_params):
         global_model_params = msg_params.get(MyMessage.MSG_ARG_KEY_MODEL_PARAMS)
         client_index = msg_params.get(MyMessage.MSG_ARG_KEY_CLIENT_INDEX)
+        self.client_idx = client_index
 
         if self.args.is_mobile == 1:
             global_model_params = transform_list_to_tensor(global_model_params)
 
         self.trainer.update_model(global_model_params)
-        self.trainer.update_dataset(int(client_index))
+        self.trainer.update_dataset(int(client_index), self.poi_args)
         self.round_idx = 0
         self.__train()
 
@@ -52,12 +57,13 @@ class FedOptClientManager(ClientManager):
         logging.info("handle_message_receive_model_from_server.")
         model_params = msg_params.get(MyMessage.MSG_ARG_KEY_MODEL_PARAMS)
         client_index = msg_params.get(MyMessage.MSG_ARG_KEY_CLIENT_INDEX)
+        self.client_idx = client_index
 
         if self.args.is_mobile == 1:
             model_params = transform_list_to_tensor(model_params)
 
         self.trainer.update_model(model_params)
-        self.trainer.update_dataset(int(client_index))
+        self.trainer.update_dataset(int(client_index), self.poi_args)
         self.round_idx += 1
         self.__train()
         if self.round_idx == self.num_rounds - 1:
@@ -73,4 +79,6 @@ class FedOptClientManager(ClientManager):
     def __train(self):
         logging.info("#######training########### round_id = %d" % self.round_idx)
         weights, local_sample_num = self.trainer.train(self.round_idx)
+        if self.poi_args and self.poi_args.use and int(self.client_idx) in self.poisoned_client_idxs:
+            weights, local_sample_num = self.trainer.poison_model(self.poi_args, self.round_idx)
         self.send_model_to_server(0, weights, local_sample_num)
