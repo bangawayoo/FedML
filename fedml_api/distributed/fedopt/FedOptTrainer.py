@@ -43,7 +43,8 @@ class FedOptTrainer(object):
     def poison_model(self, poi_args, round_idx=None):
         print("In trainer")
         self.args.round_idx = round_idx
-        self.trainer.poison_model(self.poi_train_local, self.device, poi_args)
+        poi_data = (self.poi_train_local, self.poi_test_local)
+        self.trainer.poison_model(poi_data, self.device, poi_args)
 
         weights = self.trainer.get_model_params()
 

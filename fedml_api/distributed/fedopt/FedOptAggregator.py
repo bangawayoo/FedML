@@ -15,10 +15,11 @@ class FedOptAggregator(object):
 
     def __init__(self, train_global, test_global, all_train_data_num,
                  train_data_local_dict, test_data_local_dict, train_data_local_num_dict, worker_num, device,
-                 args, model_trainer):
+                 args, model_trainer, poi_args):
         self.trainer = model_trainer
 
         self.args = args
+        self.poi_args = poi_args
         self.train_global = train_global
         self.test_global = test_global
         self.val_global = self._generate_validation_set()
@@ -143,7 +144,7 @@ class FedOptAggregator(object):
             return self.test_global
 
     def test_on_server_for_all_clients(self, round_idx):
-        if self.trainer.test_on_the_server(self.train_data_local_dict, self.test_data_local_dict, self.device, self.args):
+        if self.trainer.test_on_the_server(self.train_data_local_dict, self.test_data_local_dict, self.device, self.poi_args, self.args):
             return
 
         if round_idx % self.args.frequency_of_the_test == 0 or round_idx == self.args.comm_round - 1:

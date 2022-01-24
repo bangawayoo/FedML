@@ -44,7 +44,7 @@ def init_server(args, device, comm, rank, size, model, train_data_num, train_dat
     worker_num = size - 1
     aggregator = FedOptAggregator(train_data_global, test_data_global, train_data_num,
                                   train_data_local_dict, test_data_local_dict, train_data_local_num_dict,
-                                  worker_num, device, args, model_trainer)
+                                  worker_num, device, args, model_trainer, poi_args)
 
     # start the distributed training
     if preprocessed_sampling_lists is None :
