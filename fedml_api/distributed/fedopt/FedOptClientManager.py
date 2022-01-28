@@ -67,18 +67,21 @@ class FedOptClientManager(ClientManager):
         self.round_idx += 1
         self.__train()
         if self.round_idx == self.num_rounds - 1:
-            # post_complete_message_to_sweep_process(self.args)
+            post_complete_message_to_sweep_process(self.args)
             self.finish()
 
-    def send_model_to_server(self, receive_id, weights, local_sample_num):
+    def send_model_to_server(self, receive_id, weights, local_sample_num, num_poison_per_round):
         message = Message(MyMessage.MSG_TYPE_C2S_SEND_MODEL_TO_SERVER, self.get_sender_id(), receive_id)
         message.add_params(MyMessage.MSG_ARG_KEY_MODEL_PARAMS, weights)
         message.add_params(MyMessage.MSG_ARG_KEY_NUM_SAMPLES, local_sample_num)
+        message.add_params("num_poison", num_poison_per_round)
         self.send_message(message)
 
     def __train(self):
         logging.info("#######training########### round_id = %d" % self.round_idx)
         weights, local_sample_num = self.trainer.train(self.round_idx)
+        num_poison_per_round = 0
         if self.poi_args and self.poi_args.use and int(self.client_idx) in self.poisoned_client_idxs:
             weights, local_sample_num = self.trainer.poison_model(self.poi_args, self.round_idx)
-        self.send_model_to_server(0, weights, local_sample_num)
+            num_poison_per_round = 1
+        self.send_model_to_server(0, weights, local_sample_num, num_poison_per_round)

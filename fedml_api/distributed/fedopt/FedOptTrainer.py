@@ -41,7 +41,6 @@ class FedOptTrainer(object):
         return weights, self.local_sample_number
 
     def poison_model(self, poi_args, round_idx=None):
-        print("In trainer")
         self.args.round_idx = round_idx
         poi_data = (self.poi_train_local, self.poi_test_local)
         self.trainer.poison_model(poi_data, self.device, poi_args)

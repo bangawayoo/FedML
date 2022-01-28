@@ -34,6 +34,7 @@ class FedOptAggregator(object):
         self.model_dict = dict()
         self.sample_num_dict = dict()
         self.flag_client_model_uploaded_dict = dict()
+        self.poison_flag = dict()
         self.opt = self._instantiate_opt()
         for idx in range(self.worker_num):
             self.flag_client_model_uploaded_dict[idx] = False
@@ -54,11 +55,12 @@ class FedOptAggregator(object):
     def set_global_model_params(self, model_parameters):
         self.trainer.set_model_params(model_parameters)
 
-    def add_local_trained_result(self, index, model_params, sample_num):
+    def add_local_trained_result(self, index, model_params, sample_num, num_poison):
         logging.info("add_model. index = %d" % index)
         self.model_dict[index] = model_params
         self.sample_num_dict[index] = sample_num
         self.flag_client_model_uploaded_dict[index] = True
+        self.poison_flag[index] = num_poison
 
     def check_whether_all_receive(self):
         for idx in range(self.worker_num):
@@ -105,7 +107,8 @@ class FedOptAggregator(object):
 
         end_time = time.time()
         logging.info("aggregate time cost: %d" % (end_time - start_time))
-        return self.get_global_model_params()
+        num_poisons_per_round = sum([v for k, v in self.poison_flag.items()])
+        return self.get_global_model_params(), num_poisons_per_round
 
     def set_model_global_grads(self, new_state):
         new_model = copy.deepcopy(self.trainer.model)
@@ -144,7 +147,7 @@ class FedOptAggregator(object):
             return self.test_global
 
     def test_on_server_for_all_clients(self, round_idx):
-        if self.trainer.test_on_the_server(self.train_data_local_dict, self.test_data_local_dict, self.device, self.poi_args, self.args):
+        if self.trainer.test_on_the_server(self.train_data_local_dict, self.test_data_local_dict, self.device, round_idx, self.poi_args, self.args):
             return
 
         if round_idx % self.args.frequency_of_the_test == 0 or round_idx == self.args.comm_round - 1:
