@@ -56,7 +56,7 @@ class FedOptServerManager(ServerManager):
             # start the next round
             self.round_idx += 1
             if self.round_idx == self.round_num:
-                post_complete_message_to_sweep_process(self.args)
+                # post_complete_message_to_sweep_process(self.args)
                 self.finish()
                 return
 
