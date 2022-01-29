@@ -52,6 +52,7 @@ class FedOptServerManager(ServerManager):
         b_all_received = self.aggregator.check_whether_all_receive()
         logging.info("b_all_received = " + str(b_all_received))
         if b_all_received:
+            logging.info(f"Round : {self.round_idx}")
             global_model_params, num_poisons_per_round = self.aggregator.aggregate()
             wandb.log({'Number of Poisons': num_poisons_per_round}, step=self.round_idx)
             logging.info(f'Number of Poisons: {num_poisons_per_round}')
