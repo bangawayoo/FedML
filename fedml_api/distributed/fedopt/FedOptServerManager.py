@@ -55,7 +55,6 @@ class FedOptServerManager(ServerManager):
         if b_all_received:
             global_model_params, num_poisons_per_round = self.aggregator.aggregate()
             wandb.log({'Number of Poisons': num_poisons_per_round}, step=self.round_idx)
-            logging.info(f"Number of poi: {num_poisons_per_round}")
             self.aggregator.test_on_server_for_all_clients(self.round_idx)
 
             # start the next round
