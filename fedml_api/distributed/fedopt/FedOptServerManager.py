@@ -48,13 +48,13 @@ class FedOptServerManager(ServerManager):
         local_sample_number = msg_params.get(MyMessage.MSG_ARG_KEY_NUM_SAMPLES)
         num_poison_per_round = msg_params.get("num_poison")
 
-        logging.info(f"Round {self.round_idx}")
         self.aggregator.add_local_trained_result(sender_id - 1, model_params, local_sample_number, num_poison_per_round)
         b_all_received = self.aggregator.check_whether_all_receive()
         logging.info("b_all_received = " + str(b_all_received))
         if b_all_received:
             global_model_params, num_poisons_per_round = self.aggregator.aggregate()
             wandb.log({'Number of Poisons': num_poisons_per_round}, step=self.round_idx)
+            logging.info({'Number of Poisons': num_poisons_per_round}, step=self.round_idx)
             self.aggregator.test_on_server_for_all_clients(self.round_idx)
 
             # start the next round
