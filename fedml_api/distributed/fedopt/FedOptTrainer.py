@@ -43,11 +43,11 @@ class FedOptTrainer(object):
     def poison_model(self, poi_args, round_idx=None):
         self.args.round_idx = round_idx
         poi_data = (self.poi_train_local, self.poi_test_local)
-        self.trainer.poison_model(poi_data, self.device, poi_args)
+        result = self.trainer.poison_model(poi_data, self.device, poi_args)
 
         weights = self.trainer.get_model_params()
 
         # transform Tensor to list
         if self.args.is_mobile == 1:
             weights = transform_tensor_to_list(weights)
-        return weights, self.local_sample_number
+        return weights, self.local_sample_number, result

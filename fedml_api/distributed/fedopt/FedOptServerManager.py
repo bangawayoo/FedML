@@ -3,6 +3,7 @@ import os
 import sys
 
 import wandb
+import numpy as np
 
 from .message_define import MyMessage
 from .utils import transform_tensor_to_list, post_complete_message_to_sweep_process
@@ -47,15 +48,22 @@ class FedOptServerManager(ServerManager):
         model_params = msg_params.get(MyMessage.MSG_ARG_KEY_MODEL_PARAMS)
         local_sample_number = msg_params.get(MyMessage.MSG_ARG_KEY_NUM_SAMPLES)
         num_poison_per_round = msg_params.get("num_poison")
+        poison_result = msg_params.get("poison_result")
 
-        self.aggregator.add_local_trained_result(sender_id - 1, model_params, local_sample_number, num_poison_per_round)
+        self.aggregator.add_local_trained_result(sender_id - 1, model_params, local_sample_number, num_poison_per_round, poison_result)
         b_all_received = self.aggregator.check_whether_all_receive()
         logging.info("b_all_received = " + str(b_all_received))
         if b_all_received:
             logging.info(f"Round : {self.round_idx}")
-            global_model_params, num_poisons_per_round = self.aggregator.aggregate()
-            wandb.log({'Number of Poisons': num_poisons_per_round}, step=self.round_idx)
+            global_model_params, num_poisons_per_round, poison_results = self.aggregator.aggregate()
+            log_results = {'Number of Poisons': num_poisons_per_round}
+            for idx, r in enumerate(poison_results):
+                if r is None:
+                    r = -1
+                log_results[f'poison/client{idx}-sr'] = r
+            wandb.log(log_results, step=self.round_idx)
             logging.info(f'Number of Poisons: {num_poisons_per_round}')
+
             self.aggregator.test_on_server_for_all_clients(self.round_idx)
 
             # start the next round
