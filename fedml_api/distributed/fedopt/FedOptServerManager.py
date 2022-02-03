@@ -56,11 +56,11 @@ class FedOptServerManager(ServerManager):
         if b_all_received:
             logging.info(f"Round : {self.round_idx}")
             global_model_params, num_poisons_per_round, poison_results = self.aggregator.aggregate()
-            log_results = {'Number of Poisons': num_poisons_per_round}
+            log_results = {'poison/number of poisons': num_poisons_per_round}
             for idx, r in enumerate(poison_results):
                 if r is None:
                     r = -1
-                log_results[f'poison/client{idx}-sr'] = r
+                log_results[f'client-sr/{idx}'] = r
             wandb.log(log_results, step=self.round_idx)
             logging.info(f'Number of Poisons: {num_poisons_per_round}')
 
