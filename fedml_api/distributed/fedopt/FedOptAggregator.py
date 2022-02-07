@@ -77,6 +77,16 @@ class FedOptAggregator(object):
         model_list = []
         training_num = 0
 
+        # Colluding adversaries
+        if self.poi_args.collude:
+            poisoned_idx = [idx for idx in range(self.worker_num) if self.poison_results[idx] == 1]
+            if poisoned_idx:
+                boss_idx = random.sample(poisoned_idx, 1)[0]
+                for idx in poisoned_idx:
+                    self.model_dict[idx] = self.model_dict[boss_idx]
+                    self.poison_results[idx] = self.poison_results[boss_idx]
+
+
         for idx in range(self.worker_num):
             if self.args.is_mobile == 1:
                 self.model_dict[idx] = transform_list_to_tensor(self.model_dict[idx])
