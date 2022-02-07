@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+import copy
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.getcwd(), "../../../")))
 sys.path.insert(0, os.path.abspath(os.path.join(os.getcwd(), "../../../../FedML")))
@@ -80,6 +81,10 @@ class FedOptClientManager(ClientManager):
 
     def __train(self):
         logging.info("#######training########### round_id = %d" % self.round_idx)
+        if self.poi_args.ensemble and int(self.client_idx) in self.poisoned_client_idxs:
+            global_model = copy.deepcopy(self.trainer.trainer.model)
+            self.poi_args.__setattr__("global_model", global_model)
+            self.poi_args.global_model = global_model
         weights, local_sample_num = self.trainer.train(self.round_idx)
         num_poison_per_round = 0
         poi_result = None
