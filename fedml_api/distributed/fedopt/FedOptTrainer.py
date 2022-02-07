@@ -29,9 +29,9 @@ class FedOptTrainer(object):
             self.poi_test_local = poi_args.test_data_local_dict.get(client_index, None)
 
 
-    def train(self, round_idx=None):
+    def train(self, round_idx=None, poi_args=None):
         self.args.round_idx = round_idx
-        self.trainer.train(self.train_local, self.device, self.args)
+        self.trainer.train(self.train_local, self.device, self.args, poi_args)
 
         weights = self.trainer.get_model_params()
 
