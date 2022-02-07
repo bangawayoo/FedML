@@ -81,9 +81,8 @@ class FedOptClientManager(ClientManager):
 
     def __train(self):
         logging.info("#######training########### round_id = %d" % self.round_idx)
-        if self.poi_args.ensemble and int(self.client_idx) in self.poisoned_client_idxs:
+        if self.poi_args.use and self.poi_args.ensemble and int(self.client_idx) in self.poisoned_client_idxs:
             global_model = copy.deepcopy(self.trainer.trainer.model)
-            self.poi_args.__setattr__("global_model", global_model)
             self.poi_args.global_model = global_model
         weights, local_sample_num = self.trainer.train(self.round_idx)
         num_poison_per_round = 0
