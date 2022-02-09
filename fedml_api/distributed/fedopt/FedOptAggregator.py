@@ -9,6 +9,7 @@ import wandb
 
 from .optrepo import OptRepo
 from .utils import transform_list_to_tensor
+from training.utils.poison_utils import *
 
 
 class FedOptAggregator(object):
@@ -79,11 +80,12 @@ class FedOptAggregator(object):
 
         # Colluding adversaries
         if self.poi_args.collude:
+            word_embedding_key = return_word_embedding_key(self.model_dict[0])
             poisoned_idx = [idx for idx in range(self.worker_num) if self.poison_results[idx] == 1]
             if poisoned_idx:
                 boss_idx = random.sample(poisoned_idx, 1)[0]
                 for idx in poisoned_idx:
-                    self.model_dict[idx] = self.model_dict[boss_idx]
+                    self.model_dict[idx][word_embedding_key] = self.model_dict[boss_idx][word_embedding_key]
                     self.poison_results[idx] = self.poison_results[boss_idx]
 
 
