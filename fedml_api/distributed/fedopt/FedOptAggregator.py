@@ -77,12 +77,14 @@ class FedOptAggregator(object):
         start_time = time.time()
         model_list = []
         training_num = 0
+        num_poisons_per_round = sum([v for k, v in self.poison_flag.items()])
 
         # Colluding adversaries
         if self.poi_args.collude:
             word_embedding_key = return_word_embedding_key(self.model_dict[0])
             poisoned_idx = [idx for idx in range(self.worker_num) if self.poison_results[idx] == 1]
-            if poisoned_idx:
+            # More than two
+            if num_poisons_per_round > 1:
                 boss_idx = random.sample(poisoned_idx, 1)[0]
                 for idx in poisoned_idx:
                     self.model_dict[idx][word_embedding_key] = self.model_dict[boss_idx][word_embedding_key]
@@ -121,7 +123,6 @@ class FedOptAggregator(object):
 
         end_time = time.time()
         logging.info("aggregate time cost: %d" % (end_time - start_time))
-        num_poisons_per_round = sum([v for k, v in self.poison_flag.items()])
         poisoned_result = [v for k,v in self.poison_results.items()]
         return self.get_global_model_params(), num_poisons_per_round, poisoned_result
 
