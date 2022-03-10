@@ -19,18 +19,19 @@ def FedML_init():
 def FedML_FedOpt_distributed(process_id, worker_number, device, comm, model, train_data_num, train_data_global,
                              test_data_global,
                              train_data_local_num_dict, train_data_local_dict, test_data_local_dict, args,
-                             model_trainer=None, preprocessed_sampling_lists=None):
+                             model_trainer=None, preprocessed_sampling_lists=None, poi_args=None):
     if process_id == 0:
         init_server(args, device, comm, process_id, worker_number, model, train_data_num, train_data_global,
                     test_data_global, train_data_local_dict, test_data_local_dict, train_data_local_num_dict,
-                    model_trainer, preprocessed_sampling_lists)
+                    model_trainer, preprocessed_sampling_lists, poi_args)
     else:
         init_client(args, device, comm, process_id, worker_number, model, train_data_num, train_data_local_num_dict,
-                    train_data_local_dict, model_trainer)
+                    train_data_local_dict, model_trainer, poi_args)
 
 
 def init_server(args, device, comm, rank, size, model, train_data_num, train_data_global, test_data_global,
-                train_data_local_dict, test_data_local_dict, train_data_local_num_dict, model_trainer, preprocessed_sampling_lists=None):
+                train_data_local_dict, test_data_local_dict, train_data_local_num_dict, model_trainer,
+                preprocessed_sampling_lists=None, poi_args=None):
     if model_trainer is None:
         if args.dataset == "stackoverflow_lr":
             model_trainer = MyModelTrainerTAG(model)
@@ -43,7 +44,7 @@ def init_server(args, device, comm, rank, size, model, train_data_num, train_dat
     worker_num = size - 1
     aggregator = FedOptAggregator(train_data_global, test_data_global, train_data_num,
                                   train_data_local_dict, test_data_local_dict, train_data_local_num_dict,
-                                  worker_num, device, args, model_trainer)
+                                  worker_num, device, args, model_trainer, poi_args)
 
     # start the distributed training
     if preprocessed_sampling_lists is None :
@@ -58,7 +59,7 @@ def init_server(args, device, comm, rank, size, model, train_data_num, train_dat
 
 
 def init_client(args, device, comm, process_id, size, model, train_data_num, train_data_local_num_dict,
-                train_data_local_dict, model_trainer=None):
+                train_data_local_dict, model_trainer=None, poi_args=None):
     client_index = process_id - 1
     if model_trainer is None:
         if args.dataset == "stackoverflow_lr":
@@ -71,5 +72,5 @@ def init_client(args, device, comm, process_id, size, model, train_data_num, tra
 
     trainer = FedOptTrainer(client_index, train_data_local_dict, train_data_local_num_dict, train_data_num, device,
                             args, model_trainer)
-    client_manager = FedOptClientManager(args, trainer, comm, process_id, size)
+    client_manager = FedOptClientManager(args, trainer, comm, process_id, size, poi_args=poi_args)
     client_manager.run()

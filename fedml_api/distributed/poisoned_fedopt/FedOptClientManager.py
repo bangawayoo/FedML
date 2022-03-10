@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+import copy
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.getcwd(), "../../../")))
 sys.path.insert(0, os.path.abspath(os.path.join(os.getcwd(), "../../../../FedML")))
@@ -17,11 +18,15 @@ from .utils import transform_list_to_tensor, post_complete_message_to_sweep_proc
 
 
 class FedOptClientManager(ClientManager):
-    def __init__(self, args, trainer, comm=None, rank=0, size=0, backend="MPI"):
+    def __init__(self, args, trainer, comm=None, rank=0, size=0, backend="MPI", poi_args=None):
         super().__init__(args, comm, rank, size, backend)
         self.trainer = trainer
         self.num_rounds = args.comm_round
         self.round_idx = 0
+        self.client_idx = None
+        self.poi_args = poi_args
+        if poi_args and poi_args.use:
+            self.poisoned_client_idxs = poi_args.poisoned_client_idxs
 
     def run(self):
         super().run()
@@ -35,12 +40,13 @@ class FedOptClientManager(ClientManager):
     def handle_message_init(self, msg_params):
         global_model_params = msg_params.get(MyMessage.MSG_ARG_KEY_MODEL_PARAMS)
         client_index = msg_params.get(MyMessage.MSG_ARG_KEY_CLIENT_INDEX)
+        self.client_idx = client_index
 
         if self.args.is_mobile == 1:
             global_model_params = transform_list_to_tensor(global_model_params)
 
         self.trainer.update_model(global_model_params)
-        self.trainer.update_dataset(int(client_index))
+        self.trainer.update_dataset(int(client_index), self.poi_args)
         self.round_idx = 0
         self.__train()
 
@@ -52,25 +58,36 @@ class FedOptClientManager(ClientManager):
         logging.info("handle_message_receive_model_from_server.")
         model_params = msg_params.get(MyMessage.MSG_ARG_KEY_MODEL_PARAMS)
         client_index = msg_params.get(MyMessage.MSG_ARG_KEY_CLIENT_INDEX)
+        self.client_idx = client_index
 
         if self.args.is_mobile == 1:
             model_params = transform_list_to_tensor(model_params)
 
         self.trainer.update_model(model_params)
-        self.trainer.update_dataset(int(client_index))
+        self.trainer.update_dataset(int(client_index), self.poi_args)
         self.round_idx += 1
         self.__train()
         if self.round_idx == self.num_rounds - 1:
             post_complete_message_to_sweep_process(self.args)
             self.finish()
 
-    def send_model_to_server(self, receive_id, weights, local_sample_num):
+    def send_model_to_server(self, receive_id, weights, local_sample_num, num_poison_per_round, poi_result):
         message = Message(MyMessage.MSG_TYPE_C2S_SEND_MODEL_TO_SERVER, self.get_sender_id(), receive_id)
         message.add_params(MyMessage.MSG_ARG_KEY_MODEL_PARAMS, weights)
         message.add_params(MyMessage.MSG_ARG_KEY_NUM_SAMPLES, local_sample_num)
+        message.add_params("num_poison", num_poison_per_round)
+        message.add_params("poison_result", poi_result)
         self.send_message(message)
 
     def __train(self):
         logging.info("#######training########### round_id = %d" % self.round_idx)
-        weights, local_sample_num = self.trainer.train(self.round_idx)
-        self.send_model_to_server(0, weights, local_sample_num)
+        if self.poi_args.use and self.poi_args.ensemble and int(self.client_idx) in self.poisoned_client_idxs:
+            global_model = copy.deepcopy(self.trainer.trainer.model)
+            self.poi_args.global_model = global_model
+        weights, local_sample_num = self.trainer.train(self.round_idx, self.poi_args)
+        num_poison_per_round = 0
+        poi_result = None
+        if self.poi_args and self.poi_args.use and int(self.client_idx) in self.poisoned_client_idxs:
+            weights, local_sample_num, poi_result = self.trainer.poison_model(self.poi_args, self.round_idx)
+            num_poison_per_round = 1
+        self.send_model_to_server(0, weights, local_sample_num, num_poison_per_round, poi_result)

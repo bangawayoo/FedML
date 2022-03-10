@@ -6,19 +6,22 @@ import time
 import numpy as np
 import torch
 import wandb
+# from FedML.fedml_core.robustness.robust_aggregation import vectorize_weight
 
 from .optrepo import OptRepo
 from .utils import transform_list_to_tensor
+from training.utils.poison_utils import *
 
 
 class FedOptAggregator(object):
 
     def __init__(self, train_global, test_global, all_train_data_num,
                  train_data_local_dict, test_data_local_dict, train_data_local_num_dict, worker_num, device,
-                 args, model_trainer):
+                 args, model_trainer, poi_args):
         self.trainer = model_trainer
 
         self.args = args
+        self.poi_args = poi_args
         self.train_global = train_global
         self.test_global = test_global
         self.val_global = self._generate_validation_set()
@@ -33,7 +36,12 @@ class FedOptAggregator(object):
         self.model_dict = dict()
         self.sample_num_dict = dict()
         self.flag_client_model_uploaded_dict = dict()
+        self.poison_flag = dict()
+        self.poison_results = dict()
         self.opt = self._instantiate_opt()
+        # self.robust_aggregation = "None"
+        self.robust_aggregation = poi_args.robust_aggregation
+
         for idx in range(self.worker_num):
             self.flag_client_model_uploaded_dict[idx] = False
 
@@ -53,11 +61,13 @@ class FedOptAggregator(object):
     def set_global_model_params(self, model_parameters):
         self.trainer.set_model_params(model_parameters)
 
-    def add_local_trained_result(self, index, model_params, sample_num):
+    def add_local_trained_result(self, index, model_params, sample_num, num_poison, poison_result):
         logging.info("add_model. index = %d" % index)
         self.model_dict[index] = model_params
         self.sample_num_dict[index] = sample_num
         self.flag_client_model_uploaded_dict[index] = True
+        self.poison_flag[index] = num_poison
+        self.poison_results[index] = poison_result
 
     def check_whether_all_receive(self):
         for idx in range(self.worker_num):
@@ -71,6 +81,19 @@ class FedOptAggregator(object):
         start_time = time.time()
         model_list = []
         training_num = 0
+        num_poisons_per_round = sum([v for k, v in self.poison_flag.items()])
+
+        # Colluding adversaries
+        if self.poi_args.collude:
+            word_embedding_key = return_word_embedding_key(self.model_dict[0])
+            poisoned_idx = [idx for idx in range(self.worker_num) if self.poison_results[idx] == 1]
+            # More than two
+            if num_poisons_per_round > 1:
+                boss_idx = random.sample(poisoned_idx, 1)[0]
+                for idx in poisoned_idx:
+                    self.model_dict[idx][word_embedding_key] = self.model_dict[boss_idx][word_embedding_key]
+                    self.poison_results[idx] = self.poison_results[boss_idx]
+
 
         for idx in range(self.worker_num):
             if self.args.is_mobile == 1:
@@ -80,16 +103,37 @@ class FedOptAggregator(object):
 
         logging.info("len of self.model_dict[idx] = " + str(len(self.model_dict)))
 
+
         # logging.info("################aggregate: %d" % len(model_list))
-        (num0, averaged_params) = model_list[0]
-        for k in averaged_params.keys():
+        #Median aggregation
+        if self.robust_aggregation == "median":
+            (num0, averaged_params) = model_list[0]
+            vectorized_params = []
             for i in range(0, len(model_list)):
                 local_sample_number, local_model_params = model_list[i]
-                w = local_sample_number / training_num
-                if i == 0:
-                    averaged_params[k] = local_model_params[k] * w
-                else:
-                    averaged_params[k] += local_model_params[k] * w
+                vectors = self.vectorize_weight(local_model_params)
+                vectorized_params.append(vectors.unsqueeze(-1))
+            vectorized_params = torch.cat(vectorized_params, dim=-1)
+            vec_median_params = torch.median(vectorized_params, dim=-1).values
+
+            index = 0
+            for k, params in averaged_params.items():
+                median_params = vec_median_params[index:index+params.numel()].view(params.size())
+                index += params.numel()
+                averaged_params[k] = median_params
+
+
+        #Normal aggregation method
+        else:
+            (num0, averaged_params) = model_list[0]
+            for k in averaged_params.keys():
+                for i in range(0, len(model_list)):
+                    local_sample_number, local_model_params = model_list[i]
+                    w = local_sample_number / training_num
+                    if i == 0:
+                        averaged_params[k] = local_model_params[k] * w
+                    else:
+                        averaged_params[k] += local_model_params[k] * w
 
         # server optimizer
         # save optimizer state
@@ -104,7 +148,8 @@ class FedOptAggregator(object):
 
         end_time = time.time()
         logging.info("aggregate time cost: %d" % (end_time - start_time))
-        return self.get_global_model_params()
+        poisoned_result = [v for k,v in self.poison_results.items()]
+        return self.get_global_model_params(), num_poisons_per_round, poisoned_result
 
     def set_model_global_grads(self, new_state):
         new_model = copy.deepcopy(self.trainer.model)
@@ -143,7 +188,7 @@ class FedOptAggregator(object):
             return self.test_global
 
     def test_on_server_for_all_clients(self, round_idx):
-        if self.trainer.test_on_the_server(self.train_data_local_dict, self.test_data_local_dict, self.device, self.args):
+        if self.trainer.test_on_the_server(self.train_data_local_dict, self.test_data_local_dict, self.device, round_idx, self.poi_args, self.args):
             return
 
         if round_idx % self.args.frequency_of_the_test == 0 or round_idx == self.args.comm_round - 1:
@@ -200,3 +245,9 @@ class FedOptAggregator(object):
             wandb.log({"Test/Loss": test_loss, "round": round_idx})
             stats = {'test_acc': test_acc, 'test_loss': test_loss}
             logging.info(stats)
+
+    def vectorize_weight(self, state_dict):
+        weight_list = []
+        for (k, v) in state_dict.items():
+            weight_list.append(v.flatten())
+        return torch.cat(weight_list)
