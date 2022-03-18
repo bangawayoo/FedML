@@ -84,10 +84,18 @@ class FedOptClientManager(ClientManager):
         if self.poi_args.use and self.poi_args.ensemble and int(self.client_idx) in self.poisoned_client_idxs:
             global_model = copy.deepcopy(self.trainer.trainer.model)
             self.poi_args.global_model = global_model
-        weights, local_sample_num = self.trainer.train(self.round_idx, self.poi_args)
-        num_poison_per_round = 0
-        poi_result = None
-        if self.poi_args and self.poi_args.use and int(self.client_idx) in self.poisoned_client_idxs:
+
+        # Data poisoning
+        if self.poi_args and self.poi_args.use and int(self.client_idx) in self.poisoned_client_idxs and \
+                self.poi_args.data_poison:
             weights, local_sample_num, poi_result = self.trainer.poison_model(self.poi_args, self.round_idx)
             num_poison_per_round = 1
+        # Model Poisoning
+        else:
+            weights, local_sample_num = self.trainer.train(self.round_idx, self.poi_args)
+            num_poison_per_round = 0
+            poi_result = None
+            if self.poi_args and self.poi_args.use and int(self.client_idx) in self.poisoned_client_idxs:
+                weights, local_sample_num, poi_result = self.trainer.poison_model(self.poi_args, self.round_idx)
+                num_poison_per_round = 1
         self.send_model_to_server(0, weights, local_sample_num, num_poison_per_round, poi_result)

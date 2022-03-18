@@ -44,7 +44,6 @@ class FedOptTrainer(object):
         self.args.round_idx = round_idx
         poi_data = (self.poi_train_local, self.poi_test_local)
         result = self.trainer.poison_model(poi_data, self.device, poi_args)
-
         weights = self.trainer.get_model_params()
 
         # transform Tensor to list
