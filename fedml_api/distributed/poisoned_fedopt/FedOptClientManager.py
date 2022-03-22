@@ -87,7 +87,6 @@ class FedOptClientManager(ClientManager):
             self.poi_args.global_model = global_model
 
         poi_client_flag = is_poi_client(self.poi_args, self.client_idx, self.poisoned_client_idxs)
-
         # Data poisoning
         if poi_client_flag and self.poi_args.data_poison:
             weights, local_sample_num, poi_result = self.trainer.poison_model(self.poi_args, self.round_idx)

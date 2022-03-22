@@ -44,6 +44,7 @@ class FedOptAggregator(object):
         if poi_args.use and poi_args.adv_sampling == "fixed":
             freq = poi_args.adv_sampling_freq
             self.adversary_rounds = [freq*i-1 for i in range(1, args.comm_round//freq +1)]
+            print(self.adversary_rounds)
 
         for idx in range(self.worker_num):
             self.flag_client_model_uploaded_dict[idx] = False
