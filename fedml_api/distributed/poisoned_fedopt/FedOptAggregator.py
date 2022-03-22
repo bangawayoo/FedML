@@ -39,7 +39,6 @@ class FedOptAggregator(object):
         self.poison_flag = dict()
         self.poison_results = dict()
         self.opt = self._instantiate_opt()
-        # self.robust_aggregation = "None"
         self.robust_aggregation = poi_args.robust_aggregation
 
         for idx in range(self.worker_num):
@@ -107,6 +106,7 @@ class FedOptAggregator(object):
         # logging.info("################aggregate: %d" % len(model_list))
         #Median aggregation
         if self.robust_aggregation == "median":
+            breakpoint()
             (num0, averaged_params) = model_list[0]
             vectorized_params = []
             for i in range(0, len(model_list)):
