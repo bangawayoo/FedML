@@ -15,6 +15,7 @@ except ImportError:
 
 from .message_define import MyMessage
 from .utils import transform_list_to_tensor, post_complete_message_to_sweep_process
+from training.utils.poison_utils import is_poi_client
 
 
 class FedOptClientManager(ClientManager):
@@ -85,17 +86,19 @@ class FedOptClientManager(ClientManager):
             global_model = copy.deepcopy(self.trainer.trainer.model)
             self.poi_args.global_model = global_model
 
+        poi_client_flag = is_poi_client(self.poi_args, self.client_idx, self.poisoned_client_idxs)
+
         # Data poisoning
-        if self.poi_args and self.poi_args.use and int(self.client_idx) in self.poisoned_client_idxs and \
-                self.poi_args.data_poison:
+        if poi_client_flag and self.poi_args.data_poison:
             weights, local_sample_num, poi_result = self.trainer.poison_model(self.poi_args, self.round_idx)
             num_poison_per_round = 1
-        # Model Poisoning
         else:
             weights, local_sample_num = self.trainer.train(self.round_idx, self.poi_args)
             num_poison_per_round = 0
+
+            # Model Poisoning is done after training
             poi_result = None
-            if self.poi_args and self.poi_args.use and int(self.client_idx) in self.poisoned_client_idxs:
+            if poi_client_flag:
                 weights, local_sample_num, poi_result = self.trainer.poison_model(self.poi_args, self.round_idx)
                 num_poison_per_round = 1
         self.send_model_to_server(0, weights, local_sample_num, num_poison_per_round, poi_result)

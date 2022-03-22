@@ -40,6 +40,10 @@ class FedOptAggregator(object):
         self.poison_results = dict()
         self.opt = self._instantiate_opt()
         self.robust_aggregation = poi_args.robust_aggregation
+        self.adversary_rounds = []
+        if poi_args.use and poi_args.adv_sampling == "fixed":
+            freq = poi_args.adv_sampling_freq
+            self.adversary_rounds = [freq*i-1 for i in range(1, args.comm_round//freq +1)]
 
         for idx in range(self.worker_num):
             self.flag_client_model_uploaded_dict[idx] = False
@@ -173,7 +177,10 @@ class FedOptAggregator(object):
         else:
             num_clients = min(client_num_per_round, client_num_in_total)
             np.random.seed(round_idx)  # make sure for each comparison, we are selecting the same clients each round
-            client_indexes = np.random.choice(range(client_num_in_total), num_clients, replace=False)
+            client_indexes = np.random.choice(range(1, client_num_in_total), num_clients, replace=False)
+            if round_idx in self.adversary_rounds:
+                # process_id=1 should have client_idx=0
+                client_indexes[0] = 0
         logging.info("client_indexes = %s" % str(client_indexes))
         return client_indexes
 

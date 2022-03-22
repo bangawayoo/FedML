@@ -221,7 +221,7 @@ class FedAvgRobustAggregator(object):
     def client_sampling(self, round_idx, client_num_in_total, client_num_per_round):
         num_clients = min(client_num_per_round, client_num_in_total)
         np.random.seed(round_idx)  # make sure for each comparison, we are selecting the same clients each round
-        if round_idx not in adversary_fl_rounds:
+        if round_idx not in self.adversary_fl_rounds:
             client_indexes = np.random.choice(range(client_num_in_total), num_clients, replace=False)
         else:
             client_indexes = np.array([1] + list(np.random.choice(range(client_num_in_total), num_clients, replace=False))) # we gaurantee that the attacker will participate in a certain frequency
