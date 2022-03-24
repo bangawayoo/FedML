@@ -26,6 +26,7 @@ class FedOptClientManager(ClientManager):
         self.round_idx = 0
         self.client_idx = None
         self.poi_args = poi_args
+        self.model_states = []
         if poi_args and poi_args.use:
             self.poisoned_client_idxs = poi_args.poisoned_client_idxs
 
@@ -64,6 +65,12 @@ class FedOptClientManager(ClientManager):
         if self.args.is_mobile == 1:
             model_params = transform_list_to_tensor(model_params)
 
+        poi_client_flag = is_poi_client(self.poi_args, self.client_idx, self.poisoned_client_idxs)
+        if poi_client_flag and self.poi_args.ensemble:
+            self.model_states.append(model_params)
+            while len(self.model_states) > self.poi_args.num_ensemble:
+                self.model_states.pop(0)
+
         self.trainer.update_model(model_params)
         self.trainer.update_dataset(int(client_index), self.poi_args)
         self.round_idx += 1
@@ -82,11 +89,12 @@ class FedOptClientManager(ClientManager):
 
     def __train(self):
         logging.info("#######training########### round_id = %d" % self.round_idx)
-        if self.poi_args.use and self.poi_args.ensemble and int(self.client_idx) in self.poisoned_client_idxs:
-            global_model = copy.deepcopy(self.trainer.trainer.model)
-            self.poi_args.global_model = global_model
-
         poi_client_flag = is_poi_client(self.poi_args, self.client_idx, self.poisoned_client_idxs)
+        if self.poi_args.use and self.poi_args.ensemble and poi_client_flag:
+            self.poi_args.model_states = self.model_states
+            #global_model = copy.deepcopy(self.trainer.trainer.model)
+            #self.poi_args.global_model = global_model
+
         # Data poisoning
         if poi_client_flag and self.poi_args.data_poison:
             weights, local_sample_num, poi_result = self.trainer.poison_model(self.poi_args, self.round_idx)
