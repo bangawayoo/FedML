@@ -15,7 +15,7 @@ except ImportError:
 
 from .message_define import MyMessage
 from .utils import transform_list_to_tensor, post_complete_message_to_sweep_process
-from training.utils.poison_utils import is_poi_client
+from training.utils.poison_utils import is_poi_client, interpolate_last_two_params
 
 
 class FedOptClientManager(ClientManager):
@@ -70,6 +70,9 @@ class FedOptClientManager(ClientManager):
             self.model_states.append(model_params)
             while len(self.model_states) > self.poi_args.num_ensemble:
                 self.model_states.pop(0)
+            if self.poi_args.interpolate_ensemble:
+                self.model_states = interpolate_last_two_params(self.model_states, self.poi_args.num_ensemble-2)
+
 
         self.trainer.update_model(model_params)
         self.trainer.update_dataset(int(client_index), self.poi_args)
