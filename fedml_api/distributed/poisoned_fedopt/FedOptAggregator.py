@@ -11,6 +11,8 @@ import wandb
 from .optrepo import OptRepo
 from .utils import transform_list_to_tensor
 from training.utils.poison_utils import *
+from fedml_core.robustness.robust_aggregation import RobustAggregator, is_weight_param
+
 
 
 class FedOptAggregator(object):
@@ -39,7 +41,7 @@ class FedOptAggregator(object):
         self.poison_flag = dict()
         self.poison_results = dict()
         self.opt = self._instantiate_opt()
-        self.robust_aggregation = poi_args.robust_aggregation
+        self.robust_aggregator = RobustAggregator(args)
         self.adversary_rounds = []
         if poi_args.use and poi_args.adv_sampling == "fixed":
             freq = poi_args.adv_sampling_freq
@@ -102,16 +104,25 @@ class FedOptAggregator(object):
         for idx in range(self.worker_num):
             if self.args.is_mobile == 1:
                 self.model_dict[idx] = transform_list_to_tensor(self.model_dict[idx])
-            model_list.append((self.sample_num_dict[idx], self.model_dict[idx]))
-            training_num += self.sample_num_dict[idx]
+
+            # conduct the defense here:
+            local_sample_number, local_model_params = self.sample_num_dict[idx], self.model_dict[idx]
+            clipped_local_state_dict = local_model_params
+            if self.robust_aggregator.defense_type in ("norm_diff_clipping", "weak_dp"):
+                # get global parameters in cpu
+                global_model = copy.deepcopy(self.trainer.model).to(device=torch.device("cpu"))
+                clipped_local_state_dict = self.robust_aggregator.norm_diff_clipping(
+                    local_model_params,
+                    global_model.state_dict())
+
+            model_list.append((local_sample_number, clipped_local_state_dict))
+            training_num += local_sample_number
 
         logging.info("len of self.model_dict[idx] = " + str(len(self.model_dict)))
+        logging.info("################aggregate: %d" % len(model_list))
 
-
-        # logging.info("################aggregate: %d" % len(model_list))
-        #Median aggregation
-        if self.robust_aggregation == "median":
-            breakpoint()
+        # Median aggregation
+        if self.robust_aggregator.defense_type == "median_agg":
             (num0, averaged_params) = model_list[0]
             vectorized_params = []
             for i in range(0, len(model_list)):
@@ -128,13 +139,20 @@ class FedOptAggregator(object):
                 averaged_params[k] = median_params
 
 
-        #Normal aggregation method
+        # Mean aggregation method
         else:
             (num0, averaged_params) = model_list[0]
             for k in averaged_params.keys():
                 for i in range(0, len(model_list)):
                     local_sample_number, local_model_params = model_list[i]
                     w = local_sample_number / training_num
+                    local_layer_update = local_model_params[k]
+
+                    if self.robust_aggregator.defense_type == "weak_dp":
+                        if is_weight_param(k):
+                            local_model_params[k] = self.robust_aggregator.add_noise(
+                                local_layer_update)
+
                     if i == 0:
                         averaged_params[k] = local_model_params[k] * w
                     else:

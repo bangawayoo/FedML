@@ -5,7 +5,7 @@ def vectorize_weight(state_dict):
     weight_list = []
     for (k, v) in state_dict.items():
         if is_weight_param(k):
-            weight_list.append(v)
+            weight_list.append(v.flatten())
     return torch.cat(weight_list)
 
 
@@ -15,7 +15,7 @@ def load_model_weight_diff(local_state_dict, weight_diff, global_state_dict):
     """
     recons_local_state_dict = {}
     index_bias = 0
-    for item_index, (k, v) in enumerate(local_state_dict.state_dict().items()):
+    for item_index, (k, v) in enumerate(local_state_dict.items()):
         if is_weight_param(k):
             recons_local_state_dict[k] = weight_diff[index_bias:index_bias + v.numel()].view(v.size()) + \
                                          global_state_dict[k]
@@ -37,7 +37,8 @@ class RobustAggregator(object):
 
     def norm_diff_clipping(self, local_state_dict, global_state_dict):
         vec_local_weight = vectorize_weight(local_state_dict)
-        vec_global_weight = vectorize_weight(global_state_dict)
+        device = vec_local_weight.device
+        vec_global_weight = vectorize_weight(global_state_dict).to(device)
 
         # clip the norm diff
         vec_diff = vec_local_weight - vec_global_weight
@@ -48,7 +49,8 @@ class RobustAggregator(object):
                                                           global_state_dict)
         return clipped_local_state_dict
 
-    def add_noise(self, local_weight, device):
+    def add_noise(self, local_weight):
+        device = local_weight.device
         gaussian_noise = torch.randn(local_weight.size(),
                                      device=device) * self.stddev
         dp_weight = local_weight + gaussian_noise
