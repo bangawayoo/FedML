@@ -27,6 +27,7 @@ class FedOptClientManager(ClientManager):
         self.client_idx = None
         self.poi_args = poi_args
         self.model_states = []
+        self.poisoned_client_idxs = []
         if poi_args and poi_args.use:
             self.poisoned_client_idxs = poi_args.poisoned_client_idxs
 
