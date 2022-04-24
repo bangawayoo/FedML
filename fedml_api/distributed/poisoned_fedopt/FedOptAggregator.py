@@ -138,6 +138,22 @@ class FedOptAggregator(object):
                 index += params.numel()
                 averaged_params[k] = median_params
 
+        elif self.robust_aggregator.defense_type == "krum":
+            (num0, averaged_params) = model_list[0]
+            vectorized_params = []
+            for i in range(0, len(model_list)):
+                local_sample_number, local_model_params = model_list[i]
+                vectors = self.vectorize_weight(local_model_params)
+                vectorized_params.append(vectors.unsqueeze(-1))
+            vectorized_params = torch.cat(vectorized_params, dim=-1) # (d,n)
+            # getKrum takes (batch size, d, n) as input
+            krum, mkrum = self.robust_aggregator.getKrum(vectorized_params.unsqueeze(0))
+            mkrum.squeeze_()
+            index = 0
+            for k, params in averaged_params.items():
+                krum_params = mkrum[index:index+params.numel()].view(params.size())
+                index += params.numel()
+                averaged_params[k] = krum_params
 
         # Mean aggregation method
         else:
@@ -157,6 +173,20 @@ class FedOptAggregator(object):
                         averaged_params[k] = local_model_params[k] * w
                     else:
                         averaged_params[k] += local_model_params[k] * w
+            if self.robust_aggregator.defense_type == "median_agg_embedding":
+                logging.info("Median Aggregation for embedding layer")
+                (num0, averaged_params) = model_list[0]
+                word_embedding_key = return_word_embedding_key(averaged_params)
+                vectorized_params = []
+                for i in range(0, len(model_list)):
+                    local_sample_number, local_model_params = model_list[i]
+                    vectors = local_model_params[word_embedding_key]
+                    vectorized_params.append(vectors.unsqueeze(-1))
+                vectorized_params = torch.cat(vectorized_params, dim=-1)
+                vec_median_params = torch.median(vectorized_params, dim=-1).values
+
+                original_size = averaged_params[word_embedding_key].size()
+                averaged_params[word_embedding_key] = vec_median_params.view(original_size)
 
         # server optimizer
         # save optimizer state

@@ -1,3 +1,7 @@
+"""
+Computing (multi-)Krum is from https://github.com/cpwan/Attack-Adaptive-Aggregation-in-Federated-Learning
+"""
+
 import torch
 
 
@@ -55,3 +59,32 @@ class RobustAggregator(object):
                                      device=device) * self.stddev
         dp_weight = local_weight + gaussian_noise
         return dp_weight
+
+    def getKrum(self, vectorized_weight):
+        '''
+        From https://github.com/cpwan/Attack-Adaptive-Aggregation-in-Federated-Learning
+        compute krum or multi-krum of input. O(dn^2)
+
+        input : batchsize * vector dimension * n
+
+        return
+            krum : batchsize * vector dimension * 1
+            mkrum : batchsize * vector dimension * 1
+        '''
+
+        n = vectorized_weight.shape[-1]
+        f = n // 10  # 10% malicious points
+        k = n - f - 2
+
+        # collection distance, distance from points to points
+        x = vectorized_weight.permute(0, 2, 1)
+        cdist = torch.cdist(x, x, p=2)
+        # find the k+1 nbh of each point
+        nbhDist, nbh = torch.topk(cdist, k + 1, largest=False)
+        # the point closest to its nbh
+        i_star = torch.argmin(nbhDist.sum(2))
+        # krum
+        krum = vectorized_weight[:, :, [i_star]]
+        # Multi-Krum
+        mkrum = vectorized_weight[:, :, nbh[:, i_star, :].view(-1)].mean(2, keepdims=True)
+        return krum, mkrum
