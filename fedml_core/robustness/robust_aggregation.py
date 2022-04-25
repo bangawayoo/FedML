@@ -38,6 +38,7 @@ class RobustAggregator(object):
         self.defense_type = args.defense_type
         self.norm_bound = args.norm_bound  # for norm diff clipping and weak DP defenses
         self.stddev = args.stddev  # for weak DP defenses
+        self.krum_f = args.krum_f
 
     def norm_diff_clipping(self, local_state_dict, global_state_dict):
         vec_local_weight = vectorize_weight(local_state_dict)
@@ -73,7 +74,7 @@ class RobustAggregator(object):
         '''
 
         n = vectorized_weight.shape[-1]
-        f = n // 10  # 10% malicious points
+        f = int(n * self.krum_f)  # 10% malicious points
         k = n - f - 2
 
         # collection distance, distance from points to points
