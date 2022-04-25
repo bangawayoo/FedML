@@ -145,15 +145,16 @@ class FedOptAggregator(object):
                 local_sample_number, local_model_params = model_list[i]
                 vectors = self.vectorize_weight(local_model_params)
                 vectorized_params.append(vectors.unsqueeze(-1))
-            vectorized_params = torch.cat(vectorized_params, dim=-1) # (d,n)
+            vectorized_params = torch.cat(vectorized_params, dim=-1) #(d,n)
+
             # getKrum takes (batch size, d, n) as input
             krum, mkrum = self.robust_aggregator.getKrum(vectorized_params.unsqueeze(0))
             mkrum.squeeze_()
             index = 0
             for k, params in averaged_params.items():
                 krum_params = mkrum[index:index+params.numel()].view(params.size())
-                index += params.numel()
                 averaged_params[k] = krum_params
+                index += params.numel()
 
         # Mean aggregation method
         else:

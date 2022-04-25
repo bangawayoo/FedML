@@ -74,18 +74,23 @@ class RobustAggregator(object):
         '''
 
         n = vectorized_weight.shape[-1]
-        f = int(n * self.krum_f)  # 10% malicious points
+        f = int(n * self.krum_f)  # estimated malicious points
         k = n - f - 2
 
         # collection distance, distance from points to points
         x = vectorized_weight.permute(0, 2, 1)
-        cdist = torch.cdist(x, x, p=2)
+        cdist = torch.cdist(x, x, p=2) #return (1,n,n)
         # find the k+1 nbh of each point
-        nbhDist, nbh = torch.topk(cdist, k + 1, largest=False)
+        nbhDist, nbh = torch.topk(cdist, k + 1, largest=False) # (n,k+1)
         # the point closest to its nbh
         i_star = torch.argmin(nbhDist.sum(2))
         # krum
         krum = vectorized_weight[:, :, [i_star]]
         # Multi-Krum
         mkrum = vectorized_weight[:, :, nbh[:, i_star, :].view(-1)].mean(2, keepdims=True)
+
+        #For debugging
+        diff = (vectorized_weight.mean(2, keepdims=True) - mkrum).mean()
+        print(diff)
+
         return krum, mkrum
