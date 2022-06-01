@@ -91,6 +91,6 @@ class RobustAggregator(object):
 
         #For debugging
         diff = (vectorized_weight.mean(2, keepdims=True) - mkrum).mean()
-        print(diff)
+        # print(diff)
 
         return krum, mkrum

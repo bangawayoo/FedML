@@ -30,6 +30,8 @@ class FedOptClientManager(ClientManager):
         self.poisoned_client_idxs = []
         if poi_args and poi_args.use:
             self.poisoned_client_idxs = poi_args.poisoned_client_idxs
+        # number of adversary rounds this worker has gone through (used for DBA)
+        self.num_adv_rounds = 0
 
     def run(self):
         super().run()
@@ -103,6 +105,14 @@ class FedOptClientManager(ClientManager):
         if poi_client_flag and self.poi_args.data_poison:
             weights, local_sample_num, poi_result = self.trainer.poison_model(self.poi_args, self.round_idx)
             num_poison_per_round = 1
+
+            # Model replacement (How To Backdoor Federated Learning 2020, Bagdasaryan)
+            use_MR_strategy = True
+            if use_MR_strategy:
+                scale_factor = 5
+                for k, v in weights.items():
+                    weights[k] = scale_factor * v
+
         else:
             weights, local_sample_num = self.trainer.train(self.round_idx, self.poi_args)
             num_poison_per_round = 0
@@ -110,6 +120,8 @@ class FedOptClientManager(ClientManager):
             # Model Poisoning is done after training
             poi_result = None
             if poi_client_flag:
+                self.num_adv_rounds += 1
+                self.poi_args.num_adv_rounds = self.num_adv_rounds
                 weights, local_sample_num, poi_result = self.trainer.poison_model(self.poi_args, self.round_idx)
                 num_poison_per_round = 1
         self.send_model_to_server(0, weights, local_sample_num, num_poison_per_round, poi_result)
