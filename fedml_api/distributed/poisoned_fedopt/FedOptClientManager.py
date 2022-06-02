@@ -109,7 +109,7 @@ class FedOptClientManager(ClientManager):
             # Model replacement (How To Backdoor Federated Learning 2020, Bagdasaryan)
             use_MR_strategy = True
             if use_MR_strategy:
-                scale_factor = 5
+                scale_factor = 3
                 for k, v in weights.items():
                     weights[k] = scale_factor * v
 
