@@ -111,7 +111,8 @@ class FedOptClientManager(ClientManager):
             if use_MR_strategy:
                 scale_factor = float(self.poi_args.mr_scale)
                 for k, v in weights.items():
-                    weights[k] = scale_factor * v
+                    if "word_embeddings" in k:
+                        weights[k] = scale_factor * v
 
         else:
             weights, local_sample_num = self.trainer.train(self.round_idx, self.poi_args)
