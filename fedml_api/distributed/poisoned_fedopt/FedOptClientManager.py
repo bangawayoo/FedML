@@ -111,7 +111,7 @@ class FedOptClientManager(ClientManager):
             if use_MR_strategy:
                 scale_factor = float(self.poi_args.mr_scale)
                 for k, v in weights.items():
-                    if "word_embeddings" in k:
+                    if "layer_norm" not in k and 'bias' not in k:
                         weights[k] = scale_factor * v
 
         else:
