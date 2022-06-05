@@ -108,7 +108,7 @@ class FedOptClientManager(ClientManager):
 
             # Model replacement (How To Backdoor Federated Learning 2020, Bagdasaryan)
             use_MR_strategy = True
-            if use_MR_strategy:
+            if use_MR_strategy and self.round_idx > 35:
                 scale_factor = float(self.poi_args.mr_scale)
                 for k, v in weights.items():
                     if "layer_norm" not in k and 'bias' not in k:
