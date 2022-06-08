@@ -107,7 +107,7 @@ class FedOptClientManager(ClientManager):
             num_poison_per_round = 1
 
             # Model replacement (How To Backdoor Federated Learning 2020, Bagdasaryan)
-            use_MR_strategy = True
+            use_MR_strategy = False
             if use_MR_strategy and self.round_idx > 35:
                 scale_factor = float(self.poi_args.mr_scale)
                 for k, v in weights.items():
